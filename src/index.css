@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 210 12% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 12% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 12% 16%;
+
+    --primary: 200 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 180 100% 65%;
+
+    --secondary: 280 100% 70%;
+    --secondary-foreground: 210 12% 16%;
+
+    --muted: 210 15% 97%;
+    --muted-foreground: 210 8% 45%;
+
+    --accent: 250 100% 65%;
+    --accent-foreground: 0 0% 100%;
+    --accent-glow: 240 100% 75%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 25% 88%;
+    --input: 210 25% 88%;
+    --ring: 210 100% 45%;
+
+    /* Vehicle Management Design System */
+    --vehicle-cyan: 180 100% 50%;
+    --vehicle-cyan-light: 180 100% 65%;
+    --vehicle-cyan-dark: 180 100% 35%;
+    --vehicle-blue: 240 100% 60%;
+    --vehicle-blue-light: 240 100% 75%;
+    --vehicle-purple: 280 100% 70%;
+    --vehicle-purple-light: 280 100% 80%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--accent-glow)));
+    --gradient-vehicle: linear-gradient(135deg, hsl(180, 100%, 50%), hsl(240, 100%, 60%), hsl(280, 100%, 70%));
+    --gradient-tech: linear-gradient(135deg, hsl(200, 100%, 60%), hsl(250, 100%, 65%));
+
+    /* Shadows */
+    --shadow-medical: 0 4px 24px -2px hsl(var(--primary) / 0.08);
+    --shadow-card: 0 2px 12px -2px hsl(210 8% 45% / 0.06);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.15);
+
+    /* Animations */
+    --transition-medical: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.2s ease-in-out;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 210 20% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 210 20% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 210 20% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 200 100% 70%;
+    --primary-foreground: 210 20% 6%;
+    --primary-glow: 180 100% 75%;
+
+    --secondary: 210 20% 12%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 210 20% 12%;
+    --muted-foreground: 210 15% 65%;
+
+    --accent: 250 100% 70%;
+    --accent-foreground: 210 20% 6%;
+    --accent-glow: 240 100% 80%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 210 20% 15%;
+    --input: 210 20% 15%;
+    --ring: 210 100% 65%;
+
+    /* Dark mode vehicle colors */
+    --vehicle-cyan: 180 100% 60%;
+    --vehicle-cyan-light: 180 100% 75%;
+    --vehicle-cyan-dark: 180 100% 45%;
+    --vehicle-blue: 240 100% 70%;
+    --vehicle-blue-light: 240 100% 80%;
+    --vehicle-purple: 280 100% 75%;
+    --vehicle-purple-light: 280 100% 85%;
+
+    /* Dark mode shadows */
+    --shadow-medical: 0 4px 24px -2px hsl(210 100% 65% / 0.15);
+    --shadow-card: 0 2px 12px -2px hsl(0 0% 0% / 0.25);
+    --shadow-glow: 0 0 40px hsl(var(--primary-glow) / 0.25);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glow {
+    from {
+      box-shadow: 0 0 20px hsl(var(--primary-glow) / 0.2);
+    }
+    to {
+      box-shadow: 0 0 30px hsl(var(--primary-glow) / 0.4);
+    }
+  }
+
+  .medical-gradient {
+    background: var(--gradient-primary);
+  }
+
+  .medical-card {
+    background: hsl(var(--card));
+    box-shadow: var(--shadow-card);
+    border: 1px solid hsl(var(--border));
+  }
+
+  .processing-animation {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Hide native video overlay controls in WebKit (Safari/Chrome variants) */
+  video::-webkit-media-controls {
+    display: none !important;
+  }
+}
