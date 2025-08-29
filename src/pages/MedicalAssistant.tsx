@@ -20,7 +20,7 @@ const MedicalAssistant = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      content: "Hello! I'm your F-MedLLM AI Medical Assistant. I can help you with medical queries, analyze patient data, provide clinical insights, and assist with differential diagnosis. How can I help you today?",
+      content: "Hello! I'm your F-MedLLM AI Medical Assistant powered by Llama 3. I can help you with medical queries, analyze patient data, provide clinical insights, and assist with differential diagnosis. How can I help you today?",
       sender: "assistant",
       timestamp: new Date(),
       type: "text"
@@ -48,80 +48,30 @@ const MedicalAssistant = () => {
     "Treatment guidelines"
   ];
 
-  const simulateAIResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes("chest pain")) {
-      return `Based on your query about chest pain, here are key considerations:
+  const callLlama3API = async (userMessage: string): Promise<string> => {
+    try {
+      const response = await fetch('http://localhost:4000/api/assistant/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          context: "medical_assistant",
+          queryType: "general"
+        }),
+      });
 
-**Differential Diagnosis:**
-• Acute coronary syndrome (ACS)
-• Pulmonary embolism
-• Aortic dissection
-• Pneumothorax
-• Gastroesophageal reflux
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-**Initial Assessment:**
-• Obtain 12-lead ECG immediately
-• Check vital signs and oxygen saturation
-• Pain characteristics (PQRST)
-• Cardiac biomarkers (troponin)
-
-**Red Flag Symptoms:**
-• Sudden onset severe pain
-• Radiation to arm/jaw
-• Diaphoresis
-• Shortness of breath
-
-Would you like me to elaborate on any specific aspect or discuss diagnostic criteria?`;
+      const data = await response.json();
+      return data.response || data.message || "I apologize, but I couldn't generate a response at this time.";
+    } catch (error) {
+      console.error('Error calling Llama 3 API:', error);
+      return `I apologize, but I'm experiencing technical difficulties connecting to my AI model. Please try again in a moment. Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-    
-    if (lowerMessage.includes("x-ray") || lowerMessage.includes("imaging")) {
-      return `For chest X-ray analysis, I can help with:
-
-**Systematic Approach:**
-• Technical quality assessment
-• Cardiac silhouette evaluation
-• Pulmonary field analysis
-• Bone and soft tissue review
-
-**Common Findings:**
-• Consolidation patterns
-• Pleural effusions
-• Pneumothorax
-• Cardiomegaly
-
-Please upload the imaging study or describe the specific findings you'd like me to analyze. I can provide interpretation assistance while emphasizing that final diagnosis should always involve clinical correlation.`;
-    }
-
-    if (lowerMessage.includes("lab") || lowerMessage.includes("blood")) {
-      return `I can help interpret laboratory values and provide clinical context:
-
-**Common Lab Panels:**
-• Complete Blood Count (CBC)
-• Basic Metabolic Panel (BMP)
-• Liver Function Tests (LFTs)
-• Cardiac biomarkers
-• Inflammatory markers
-
-**Key Considerations:**
-• Reference ranges may vary by lab
-• Clinical context is crucial
-• Age and gender variations
-• Drug interactions affecting results
-
-Please share the specific lab values you'd like me to review, and I'll provide interpretation guidance along with potential clinical implications.`;
-    }
-
-    return `Thank you for your question. I'm analyzing your query and will provide evidence-based medical information to assist with your clinical decision-making.
-
-Please note that this AI assistance is meant to support clinical judgment, not replace it. Always consider:
-• Patient's complete clinical picture
-• Local treatment guidelines
-• Individual patient factors
-• Need for specialist consultation
-
-Is there a specific aspect of this case you'd like me to focus on?`;
   };
 
   const handleSendMessage = async () => {
@@ -139,24 +89,45 @@ Is there a specific aspect of this case you'd like me to focus on?`;
     setInputMessage("");
     setIsTyping(true);
 
-    // Simulate AI processing time
-    setTimeout(() => {
-      const aiResponse: Message = {
+    try {
+      // Call the actual Llama 3 backend
+      const aiResponse = await callLlama3API(inputMessage);
+      
+      const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: simulateAIResponse(inputMessage),
+        content: aiResponse,
         sender: "assistant",
         timestamp: new Date(),
         type: "analysis"
       };
 
-      setMessages(prev => [...prev, aiResponse]);
-      setIsTyping(false);
+      setMessages(prev => [...prev, assistantMessage]);
       
       toast({
         title: "Analysis complete",
-        description: "AI medical assistant has provided clinical insights.",
+        description: "Llama 3 AI has provided clinical insights.",
       });
-    }, 2000);
+    } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "I apologize, but I'm experiencing technical difficulties. Please check if the backend server is running and try again.",
+        sender: "assistant",
+        timestamp: new Date(),
+        type: "text"
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+      
+      toast({
+        title: "Error",
+        description: "Failed to get response from Llama 3. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleQuickQuestion = (question: string) => {
