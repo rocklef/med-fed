@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, Send, User, Bot, FileText, Image, BarChart3, AlertTriangle, Clock, BookOpen } from "lucide-react";
+import { Brain, Send, User, Bot, FileText, Image, BarChart3, AlertTriangle, Clock, BookOpen, Wifi, WifiOff, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -14,6 +14,13 @@ interface Message {
   sender: "user" | "assistant";
   timestamp: Date;
   type?: "text" | "analysis" | "suggestion";
+}
+
+interface ServiceStatus {
+  status: "ready" | "initializing" | "unavailable";
+  queueLength: number;
+  processing: boolean;
+  availableModels: string[];
 }
 
 const MedicalAssistant = () => {
@@ -28,8 +35,11 @@ const MedicalAssistant = () => {
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,6 +48,28 @@ const MedicalAssistant = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Check service status on component mount and periodically
+  useEffect(() => {
+    const checkServiceStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/assistant/status`);
+        if (response.ok) {
+          const status = await response.json();
+          setServiceStatus(status);
+        } else {
+          setServiceStatus({ status: "unavailable", queueLength: 0, processing: false, availableModels: [] });
+        }
+      } catch (error) {
+        setServiceStatus({ status: "unavailable", queueLength: 0, processing: false, availableModels: [] });
+      }
+    };
+
+    checkServiceStatus();
+    const interval = setInterval(checkServiceStatus, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [API_URL]);
 
   const quickQuestions = [
     "Analyze chest X-ray findings",
@@ -48,30 +80,55 @@ const MedicalAssistant = () => {
     "Treatment guidelines"
   ];
 
-  const callLlama3API = async (userMessage: string): Promise<string> => {
+  // Enhanced API call with better error handling and query type detection
+  const callLlama3API = async (userMessage: string, queryType?: string): Promise<string> => {
     try {
-      const response = await fetch('http://localhost:4000/api/assistant/chat', {
+      // Auto-detect query type based on message content
+      const detectedQueryType = queryType || detectQueryType(userMessage);
+      
+      const response = await fetch(`${API_URL}/api/assistant/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // 'x-api-key': 'your-api-key-here' // Uncomment and replace with your actual API_KEY from server/.env if needed
         },
         body: JSON.stringify({
           message: userMessage,
           context: "medical_assistant",
-          queryType: "general"
+          queryType: detectedQueryType,
+          patientData: {
+            // Add any available patient context here
+          }
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      }
       return data.response || data.message || "I apologize, but I couldn't generate a response at this time.";
     } catch (error) {
       console.error('Error calling Llama 3 API:', error);
       return `I apologize, but I'm experiencing technical difficulties connecting to my AI model. Please try again in a moment. Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
+  };
+
+  // Auto-detect query type based on message content
+  const detectQueryType = (message: string): string => {
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('diagnos') || lowerMessage.includes('differential') || lowerMessage.includes('what could') || lowerMessage.includes('symptoms')) {
+      return 'diagnosis';
+    } else if (lowerMessage.includes('treat') || lowerMessage.includes('therapy') || lowerMessage.includes('medication') || lowerMessage.includes('drug')) {
+      return 'treatment';
+    } else if (lowerMessage.includes('lab') || lowerMessage.includes('test result') || lowerMessage.includes('blood') || lowerMessage.includes('analyze')) {
+      return 'lab_interpretation';
+    } else if (lowerMessage.includes('medicine') || lowerMessage.includes('pill') || lowerMessage.includes('dose') || lowerMessage.includes('side effect')) {
+      return 'medication';
+    } else if (lowerMessage.includes('analyze') || lowerMessage.includes('interpret') || lowerMessage.includes('data')) {
+      return 'analysis';
+    }
+    return 'general';
   };
 
   const handleSendMessage = async () => {
@@ -122,7 +179,7 @@ const MedicalAssistant = () => {
       
       toast({
         title: "Error",
-        description: "Failed to get response from Llama 3. Please try again.",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
         variant: "destructive",
       });
     } finally {
@@ -167,6 +224,26 @@ const MedicalAssistant = () => {
             <Badge variant="outline" className="text-accent border-accent">
               <Clock className="h-3 w-3 mr-1" />
               Real-time analysis
+            </Badge>
+            {/* Llama3 Status Badge */}
+            <Badge 
+              variant="outline" 
+              className={`${
+                serviceStatus?.status === "ready" 
+                  ? "text-green-600 border-green-600" 
+                  : serviceStatus?.status === "initializing"
+                  ? "text-yellow-600 border-yellow-600"
+                  : "text-red-600 border-red-600"
+              }`}
+            >
+              {serviceStatus?.status === "ready" ? (
+                <CheckCircle className="h-3 w-3 mr-1" />
+              ) : serviceStatus?.status === "initializing" ? (
+                <Wifi className="h-3 w-3 mr-1" />
+              ) : (
+                <WifiOff className="h-3 w-3 mr-1" />
+              )}
+              Llama3 {serviceStatus?.status || "checking..."}
             </Badge>
           </div>
         </div>
@@ -259,6 +336,44 @@ const MedicalAssistant = () => {
                     <span className="text-sm">{question}</span>
                   </Button>
                 ))}
+              </div>
+            </Card>
+
+            {/* Service Status */}
+            <Card className="p-4 medical-card">
+              <h3 className="font-semibold mb-4 text-foreground">Llama3 Service Status</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status:</span>
+                  <Badge 
+                    variant={serviceStatus?.status === "ready" ? "default" : "secondary"}
+                    className={`${
+                      serviceStatus?.status === "ready" 
+                        ? "bg-green-100 text-green-800" 
+                        : serviceStatus?.status === "initializing"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {serviceStatus?.status || "checking..."}
+                  </Badge>
+                </div>
+                {serviceStatus && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Queue:</span>
+                      <span className="text-sm">{serviceStatus.queueLength}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Processing:</span>
+                      <span className="text-sm">{serviceStatus.processing ? "Yes" : "No"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Models:</span>
+                      <span className="text-sm">{serviceStatus.availableModels.length}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </Card>
 
