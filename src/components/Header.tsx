@@ -45,7 +45,7 @@ const Header = () => {
                 <span>Active</span>
               </div>
             </div>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/settings'}>
               Settings
             </Button>
           </div>
