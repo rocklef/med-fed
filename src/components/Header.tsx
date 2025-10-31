@@ -30,7 +30,7 @@ const Header = () => {
               <a href="/payments">Payments</a>
             </Button>
             <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-              Analytics
+              <a href="/analytics">Analytics</a>
             </Button>
           </nav>
 
