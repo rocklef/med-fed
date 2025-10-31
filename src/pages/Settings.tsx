@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,103 +16,245 @@ import {
   Network, 
   Zap,
   Save,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Define the settings structure
+interface Settings {
+  aiModel: {
+    modelPath: string;
+    temperature: number;
+    maxTokens: number;
+    contextLength: number;
+    topP: number;
+  };
+  privacy: {
+    encryptData: boolean;
+    anonymizePatients: boolean;
+    auditLogs: boolean;
+    dataRetention: string;
+  };
+  notifications: {
+    emailNotifications: boolean;
+    inAppAlerts: boolean;
+    aiCompletion: boolean;
+    systemUpdates: boolean;
+    paymentConfirmations: boolean;
+  };
+  appearance: {
+    theme: string;
+    fontSize: string;
+    language: string;
+  };
+}
 
 const Settings = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("general");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
   
   // Form states
-  const [generalSettings, setGeneralSettings] = useState({
-    name: "Dr. Sarah Johnson",
-    email: "sarah.johnson@hospital.com",
-    role: "Physician",
-    notifications: true,
-    twoFactor: false
-  });
-  
-  const [aiSettings, setAiSettings] = useState({
-    model: "llama3:latest",
-    temperature: 0.7,
-    maxTokens: 2048,
-    contextLength: 4096,
-    autoSaveChats: true
-  });
-  
-  const [privacySettings, setPrivacySettings] = useState({
-    encryptData: true,
-    anonymizePatients: true,
-    auditLogs: true,
-    dataRetention: "2 years"
-  });
-  
-  const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
-    inAppAlerts: true,
-    aiCompletion: true,
-    systemUpdates: false,
-    paymentConfirmations: true
-  });
-  
-  const [appearanceSettings, setAppearanceSettings] = useState({
-    theme: "dark",
-    fontSize: "medium",
-    language: "en"
-  });
-
-  const handleSave = () => {
-    toast({
-      title: "Settings Saved",
-      description: "Your settings have been successfully updated.",
-    });
-  };
-
-  const handleReset = () => {
-    // Reset to default values
-    setGeneralSettings({
-      name: "Dr. Sarah Johnson",
-      email: "sarah.johnson@hospital.com",
-      role: "Physician",
-      notifications: true,
-      twoFactor: false
-    });
-    
-    setAiSettings({
-      model: "llama3:latest",
+  const [settings, setSettings] = useState<Settings>({
+    aiModel: {
+      modelPath: "llama3:latest",
       temperature: 0.7,
       maxTokens: 2048,
       contextLength: 4096,
-      autoSaveChats: true
-    });
-    
-    setPrivacySettings({
+      topP: 0.9
+    },
+    privacy: {
       encryptData: true,
       anonymizePatients: true,
       auditLogs: true,
       dataRetention: "2 years"
-    });
-    
-    setNotificationSettings({
+    },
+    notifications: {
       emailNotifications: true,
       inAppAlerts: true,
       aiCompletion: true,
       systemUpdates: false,
       paymentConfirmations: true
-    });
-    
-    setAppearanceSettings({
+    },
+    appearance: {
       theme: "dark",
       fontSize: "medium",
       language: "en"
-    });
-    
-    toast({
-      title: "Settings Reset",
-      description: "Settings have been reset to default values.",
-    });
+    }
+  });
+
+  // Fetch current settings from backend
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/api/settings`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch settings (${response.status})`);
+        }
+        const data = await response.json();
+        setSettings(data);
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load settings. Using default values.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, [API_URL, toast]);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const response = await fetch(`${API_URL}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save settings (${response.status})`);
+      }
+
+      const data = await response.json();
+      toast({
+        title: "Settings Saved",
+        description: data.message || "Your settings have been successfully updated.",
+      });
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const handleReset = async () => {
+    const defaultSettings: Settings = {
+      aiModel: {
+        modelPath: "llama3:latest",
+        temperature: 0.7,
+        maxTokens: 2048,
+        contextLength: 4096,
+        topP: 0.9
+      },
+      privacy: {
+        encryptData: true,
+        anonymizePatients: true,
+        auditLogs: true,
+        dataRetention: "2 years"
+      },
+      notifications: {
+        emailNotifications: true,
+        inAppAlerts: true,
+        aiCompletion: true,
+        systemUpdates: false,
+        paymentConfirmations: true
+      },
+      appearance: {
+        theme: "dark",
+        fontSize: "medium",
+        language: "en"
+      }
+    };
+
+    try {
+      setSaving(true);
+      const response = await fetch(`${API_URL}/api/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(defaultSettings)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to reset settings (${response.status})`);
+      }
+
+      setSettings(defaultSettings);
+      toast({
+        title: "Settings Reset",
+        description: "Settings have been reset to default values.",
+      });
+    } catch (error) {
+      console.error("Error resetting settings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to reset settings. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Update specific setting values
+  const updateAiModelSetting = (key: keyof Settings['aiModel'], value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      aiModel: {
+        ...prev.aiModel,
+        [key]: value
+      }
+    }));
+  };
+
+  const updatePrivacySetting = (key: keyof Settings['privacy'], value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      privacy: {
+        ...prev.privacy,
+        [key]: value
+      }
+    }));
+  };
+
+  const updateNotificationSetting = (key: keyof Settings['notifications'], value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      notifications: {
+        ...prev.notifications,
+        [key]: value
+      }
+    }));
+  };
+
+  const updateAppearanceSetting = (key: keyof Settings['appearance'], value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      appearance: {
+        ...prev.appearance,
+        [key]: value
+      }
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pt-20 px-6 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-8 w-8 animate-spin mb-4" />
+          <p>Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pt-20 px-6">
@@ -150,8 +292,8 @@ const Settings = () => {
                   <Label htmlFor="name">Full Name</Label>
                   <Input 
                     id="name" 
-                    value={generalSettings.name}
-                    onChange={(e) => setGeneralSettings({...generalSettings, name: e.target.value})}
+                    value="Dr. Sarah Johnson"
+                    disabled
                   />
                 </div>
                 
@@ -160,14 +302,14 @@ const Settings = () => {
                   <Input 
                     id="email" 
                     type="email"
-                    value={generalSettings.email}
-                    onChange={(e) => setGeneralSettings({...generalSettings, email: e.target.value})}
+                    value="sarah.johnson@hospital.com"
+                    disabled
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Select value={generalSettings.role} onValueChange={(value) => setGeneralSettings({...generalSettings, role: value})}>
+                  <Select defaultValue="physician" disabled>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -190,8 +332,11 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Receive system notifications</p>
                   </div>
                   <Switch 
-                    checked={generalSettings.notifications}
-                    onCheckedChange={(checked) => setGeneralSettings({...generalSettings, notifications: checked})}
+                    checked={settings.notifications.emailNotifications || settings.notifications.inAppAlerts}
+                    onCheckedChange={(checked) => {
+                      updateNotificationSetting('emailNotifications', checked);
+                      updateNotificationSetting('inAppAlerts', checked);
+                    }}
                   />
                 </div>
                 
@@ -200,10 +345,7 @@ const Settings = () => {
                     <Label>Two-Factor Authentication</Label>
                     <p className="text-sm text-muted-foreground">Add extra security to your account</p>
                   </div>
-                  <Switch 
-                    checked={generalSettings.twoFactor}
-                    onCheckedChange={(checked) => setGeneralSettings({...generalSettings, twoFactor: checked})}
-                  />
+                  <Switch disabled />
                 </div>
               </div>
             </Card>
@@ -219,7 +361,10 @@ const Settings = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="model">AI Model</Label>
-                  <Select value={aiSettings.model} onValueChange={(value) => setAiSettings({...aiSettings, model: value})}>
+                  <Select 
+                    value={settings.aiModel.modelPath} 
+                    onValueChange={(value) => updateAiModelSetting('modelPath', value)}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -234,14 +379,14 @@ const Settings = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Temperature: {aiSettings.temperature}</Label>
+                  <Label>Temperature: {settings.aiModel.temperature}</Label>
                   <input 
                     type="range" 
                     min="0" 
                     max="1" 
                     step="0.1"
-                    value={aiSettings.temperature}
-                    onChange={(e) => setAiSettings({...aiSettings, temperature: parseFloat(e.target.value)})}
+                    value={settings.aiModel.temperature}
+                    onChange={(e) => updateAiModelSetting('temperature', parseFloat(e.target.value))}
                     className="w-full"
                   />
                   <p className="text-sm text-muted-foreground">Controls randomness in responses (0 = deterministic, 1 = creative)</p>
@@ -253,8 +398,8 @@ const Settings = () => {
                     <Input 
                       id="maxTokens" 
                       type="number"
-                      value={aiSettings.maxTokens}
-                      onChange={(e) => setAiSettings({...aiSettings, maxTokens: parseInt(e.target.value)})}
+                      value={settings.aiModel.maxTokens}
+                      onChange={(e) => updateAiModelSetting('maxTokens', parseInt(e.target.value) || 2048)}
                     />
                     <p className="text-sm text-muted-foreground">Maximum tokens per response</p>
                   </div>
@@ -264,22 +409,25 @@ const Settings = () => {
                     <Input 
                       id="contextLength" 
                       type="number"
-                      value={aiSettings.contextLength}
-                      onChange={(e) => setAiSettings({...aiSettings, contextLength: parseInt(e.target.value)})}
+                      value={settings.aiModel.contextLength}
+                      onChange={(e) => updateAiModelSetting('contextLength', parseInt(e.target.value) || 4096)}
                     />
                     <p className="text-sm text-muted-foreground">Maximum context window size</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center justify-between pt-4">
-                  <div>
-                    <Label>Auto-save Chat History</Label>
-                    <p className="text-sm text-muted-foreground">Automatically save AI conversations</p>
-                  </div>
-                  <Switch 
-                    checked={aiSettings.autoSaveChats}
-                    onCheckedChange={(checked) => setAiSettings({...aiSettings, autoSaveChats: checked})}
+                <div className="space-y-2">
+                  <Label htmlFor="topP">Top-P (Nucleus Sampling)</Label>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.1"
+                    value={settings.aiModel.topP}
+                    onChange={(e) => updateAiModelSetting('topP', parseFloat(e.target.value))}
+                    className="w-full"
                   />
+                  <p className="text-sm text-muted-foreground">Controls diversity of responses (0 = greedy, 1 = random)</p>
                 </div>
               </div>
             </Card>
@@ -299,8 +447,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">End-to-end encryption for all patient information</p>
                   </div>
                   <Switch 
-                    checked={privacySettings.encryptData}
-                    onCheckedChange={(checked) => setPrivacySettings({...privacySettings, encryptData: checked})}
+                    checked={settings.privacy.encryptData}
+                    onCheckedChange={(checked) => updatePrivacySetting('encryptData', checked)}
                   />
                 </div>
                 
@@ -310,8 +458,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Remove identifying information in AI processing</p>
                   </div>
                   <Switch 
-                    checked={privacySettings.anonymizePatients}
-                    onCheckedChange={(checked) => setPrivacySettings({...privacySettings, anonymizePatients: checked})}
+                    checked={settings.privacy.anonymizePatients}
+                    onCheckedChange={(checked) => updatePrivacySetting('anonymizePatients', checked)}
                   />
                 </div>
                 
@@ -321,14 +469,17 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Track all system access and modifications</p>
                   </div>
                   <Switch 
-                    checked={privacySettings.auditLogs}
-                    onCheckedChange={(checked) => setPrivacySettings({...privacySettings, auditLogs: checked})}
+                    checked={settings.privacy.auditLogs}
+                    onCheckedChange={(checked) => updatePrivacySetting('auditLogs', checked)}
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="dataRetention">Data Retention Period</Label>
-                  <Select value={privacySettings.dataRetention} onValueChange={(value) => setPrivacySettings({...privacySettings, dataRetention: value})}>
+                  <Select 
+                    value={settings.privacy.dataRetention} 
+                    onValueChange={(value) => updatePrivacySetting('dataRetention', value)}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -360,8 +511,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Receive important updates via email</p>
                   </div>
                   <Switch 
-                    checked={notificationSettings.emailNotifications}
-                    onCheckedChange={(checked) => setNotificationSettings({...notificationSettings, emailNotifications: checked})}
+                    checked={settings.notifications.emailNotifications}
+                    onCheckedChange={(checked) => updateNotificationSetting('emailNotifications', checked)}
                   />
                 </div>
                 
@@ -371,8 +522,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Show notifications within the application</p>
                   </div>
                   <Switch 
-                    checked={notificationSettings.inAppAlerts}
-                    onCheckedChange={(checked) => setNotificationSettings({...notificationSettings, inAppAlerts: checked})}
+                    checked={settings.notifications.inAppAlerts}
+                    onCheckedChange={(checked) => updateNotificationSetting('inAppAlerts', checked)}
                   />
                 </div>
                 
@@ -382,8 +533,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Notify when AI processing is complete</p>
                   </div>
                   <Switch 
-                    checked={notificationSettings.aiCompletion}
-                    onCheckedChange={(checked) => setNotificationSettings({...notificationSettings, aiCompletion: checked})}
+                    checked={settings.notifications.aiCompletion}
+                    onCheckedChange={(checked) => updateNotificationSetting('aiCompletion', checked)}
                   />
                 </div>
                 
@@ -393,8 +544,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Receive notifications about system status</p>
                   </div>
                   <Switch 
-                    checked={notificationSettings.systemUpdates}
-                    onCheckedChange={(checked) => setNotificationSettings({...notificationSettings, systemUpdates: checked})}
+                    checked={settings.notifications.systemUpdates}
+                    onCheckedChange={(checked) => updateNotificationSetting('systemUpdates', checked)}
                   />
                 </div>
                 
@@ -404,8 +555,8 @@ const Settings = () => {
                     <p className="text-sm text-muted-foreground">Notify about payment transactions</p>
                   </div>
                   <Switch 
-                    checked={notificationSettings.paymentConfirmations}
-                    onCheckedChange={(checked) => setNotificationSettings({...notificationSettings, paymentConfirmations: checked})}
+                    checked={settings.notifications.paymentConfirmations}
+                    onCheckedChange={(checked) => updateNotificationSetting('paymentConfirmations', checked)}
                   />
                 </div>
               </div>
@@ -424,20 +575,20 @@ const Settings = () => {
                   <Label>Theme</Label>
                   <div className="flex space-x-4">
                     <Button 
-                      variant={appearanceSettings.theme === "light" ? "default" : "outline"}
-                      onClick={() => setAppearanceSettings({...appearanceSettings, theme: "light"})}
+                      variant={settings.appearance.theme === "light" ? "default" : "outline"}
+                      onClick={() => updateAppearanceSetting('theme', "light")}
                     >
                       Light
                     </Button>
                     <Button 
-                      variant={appearanceSettings.theme === "dark" ? "default" : "outline"}
-                      onClick={() => setAppearanceSettings({...appearanceSettings, theme: "dark"})}
+                      variant={settings.appearance.theme === "dark" ? "default" : "outline"}
+                      onClick={() => updateAppearanceSetting('theme', "dark")}
                     >
                       Dark
                     </Button>
                     <Button 
-                      variant={appearanceSettings.theme === "system" ? "default" : "outline"}
-                      onClick={() => setAppearanceSettings({...appearanceSettings, theme: "system"})}
+                      variant={settings.appearance.theme === "system" ? "default" : "outline"}
+                      onClick={() => updateAppearanceSetting('theme', "system")}
                     >
                       System
                     </Button>
@@ -446,7 +597,10 @@ const Settings = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="fontSize">Font Size</Label>
-                  <Select value={appearanceSettings.fontSize} onValueChange={(value) => setAppearanceSettings({...appearanceSettings, fontSize: value})}>
+                  <Select 
+                    value={settings.appearance.fontSize} 
+                    onValueChange={(value) => updateAppearanceSetting('fontSize', value)}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -460,7 +614,10 @@ const Settings = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="language">Language</Label>
-                  <Select value={appearanceSettings.language} onValueChange={(value) => setAppearanceSettings({...appearanceSettings, language: value})}>
+                  <Select 
+                    value={settings.appearance.language} 
+                    onValueChange={(value) => updateAppearanceSetting('language', value)}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -478,13 +635,22 @@ const Settings = () => {
         </Tabs>
 
         <div className="flex justify-end space-x-4 mt-8">
-          <Button variant="outline" onClick={handleReset}>
-            <RotateCcw className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleReset} disabled={saving}>
+            <RotateCcw className={`h-4 w-4 mr-2 ${saving ? 'animate-spin' : ''}`} />
             Reset to Defaults
           </Button>
-          <Button onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            Save Settings
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save Settings
+              </>
+            )}
           </Button>
         </div>
       </div>

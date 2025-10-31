@@ -16,6 +16,7 @@ import paymentsRouter from './routes/payments';
 import ragRouter from './routes/rag';
 import uploadsRouter from './routes/uploads';
 import analyticsRouter from './routes/analytics';
+import settingsRouter from './routes/settings';
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/rag', ragRouter);
 app.use('/api/uploads', uploadsRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/settings', settingsRouter);
 
 // Not found
 app.use((req: Request, res: Response) => {
