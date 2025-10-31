@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Image, BarChart3, Play, CheckCircle, AlertCircle } from "lucide-react";
+import { Upload, FileText, Image, BarChart3, Play, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const DataProcessing = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
+  const [uploading, setUploading] = useState<'images' | 'documents' | 'lab-data' | null>(null);
+  const { toast } = useToast();
+  
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const documentsInputRef = useRef<HTMLInputElement>(null);
+  const labDataInputRef = useRef<HTMLInputElement>(null);
 
   const processingJobs = [
     { 
@@ -50,6 +57,84 @@ const DataProcessing = () => {
     }, 200);
   };
 
+  const handleFileUpload = async (
+    files: FileList | null, 
+    uploadType: 'images' | 'documents' | 'lab-data'
+  ) => {
+    if (!files || files.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please select at least one file to upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(uploadType);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      const fieldName = uploadType === 'images' ? 'images' : uploadType === 'documents' ? 'documents' : 'labData';
+      
+      // Add all files to form data
+      Array.from(files).forEach((file) => {
+        formData.append(fieldName, file);
+      });
+
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      const response = await fetch(`http://localhost:4000/api/uploads/${uploadType}`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Upload failed');
+      }
+
+      const result = await response.json();
+      setUploadProgress(100);
+
+      toast({
+        title: "Upload successful!",
+        description: result.message || `${files.length} file(s) uploaded successfully.`,
+      });
+
+      // Reset after showing success
+      setTimeout(() => {
+        setUploadProgress(0);
+        setUploading(null);
+      }, 1000);
+
+      // Clear input
+      if (uploadType === 'images' && imageInputRef.current) imageInputRef.current.value = '';
+      if (uploadType === 'documents' && documentsInputRef.current) documentsInputRef.current.value = '';
+      if (uploadType === 'lab-data' && labDataInputRef.current) labDataInputRef.current.value = '';
+
+    } catch (error) {
+      setUploadProgress(0);
+      setUploading(null);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "An error occurred during upload.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <section className="py-16 px-6">
       <div className="container mx-auto max-w-6xl">
@@ -79,9 +164,31 @@ const DataProcessing = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Upload discharge summaries, clinical notes, and patient reports
                   </p>
-                  <Button className="w-full" variant="outline">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Files
+                  <input
+                    type="file"
+                    ref={documentsInputRef}
+                    onChange={(e) => handleFileUpload(e.target.files, 'documents')}
+                    className="hidden"
+                    multiple
+                    accept=".pdf,.txt,.doc,.docx"
+                  />
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => documentsInputRef.current?.click()}
+                    disabled={uploading !== null}
+                  >
+                    {uploading === 'documents' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Files
+                      </>
+                    )}
                   </Button>
                 </div>
               </Card>
@@ -96,9 +203,31 @@ const DataProcessing = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Process X-rays, MRIs, CT scans, and other medical images
                   </p>
-                  <Button className="w-full" variant="outline">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Images
+                  <input
+                    type="file"
+                    ref={imageInputRef}
+                    onChange={(e) => handleFileUpload(e.target.files, 'images')}
+                    className="hidden"
+                    multiple
+                    accept=".jpg,.jpeg,.png,.dcm,.nii,.nii.gz"
+                  />
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={uploading !== null}
+                  >
+                    {uploading === 'images' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Images
+                      </>
+                    )}
                   </Button>
                 </div>
               </Card>
@@ -113,13 +242,54 @@ const DataProcessing = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Import structured lab data, blood work, and diagnostic tests
                   </p>
-                  <Button className="w-full" variant="outline">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Data
+                  <input
+                    type="file"
+                    ref={labDataInputRef}
+                    onChange={(e) => handleFileUpload(e.target.files, 'lab-data')}
+                    className="hidden"
+                    multiple
+                    accept=".csv,.xlsx,.json,.xml"
+                  />
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => labDataInputRef.current?.click()}
+                    disabled={uploading !== null}
+                  >
+                    {uploading === 'lab-data' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Data
+                      </>
+                    )}
                   </Button>
                 </div>
               </Card>
             </div>
+
+            {/* Upload Progress */}
+            {uploading && (
+              <Card className="p-6 medical-card">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="font-medium">
+                      Uploading {uploading === 'images' ? 'images' : uploading === 'documents' ? 'documents' : 'lab data'}...
+                    </span>
+                  </div>
+                  <Progress value={uploadProgress} className="w-full" />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Processing files...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* Processing Demo */}
             <Card className="p-6 medical-card">

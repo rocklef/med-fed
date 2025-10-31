@@ -9,6 +9,7 @@ const chatRequestSchema = z.object({
   message: z.string().min(1),
   context: z.string().optional(),
   queryType: z.enum(['diagnosis', 'treatment', 'analysis', 'general', 'medication', 'lab_interpretation']).default('general'),
+  patientId: z.number().optional(),
   patientData: z.object({
     age: z.number().optional(),
     gender: z.string().optional(),
@@ -38,7 +39,7 @@ router.post('/chat', async (req: Request, res: Response) => {
       });
     }
 
-    const { message, context, queryType, patientData, enableStreaming } = parsed.data;
+    const { message, context, queryType, patientData, patientId, enableStreaming } = parsed.data;
 
     // Get Llama 3 service instance
     const llamaService = getLlamaService();
@@ -50,17 +51,49 @@ router.post('/chat', async (req: Request, res: Response) => {
       });
     }
 
+    // If patientId provided, fetch from DB and enrich context
+    let fetchedPatient: any = undefined;
+    try {
+      if (patientId !== undefined) {
+        // dynamic import to avoid circular deps at module load
+        const { getPatientById } = await import('../services/databaseService');
+        const p = getPatientById(patientId);
+        if (p) {
+          fetchedPatient = {
+            fullName: `${p.firstName} ${p.lastName}`.trim(),
+            firstName: p.firstName,
+            lastName: p.lastName,
+            age: p.dob ? Math.max(0, Math.floor((Date.now() - p.dob.getTime()) / (365.25*24*60*60*1000))) : undefined,
+            gender: p.gender,
+            conditions: p.conditions || [],
+            medications: p.medications || [],
+            notes: p.notes || undefined,
+            medicalHistory: p.conditions?.join(', ') || p.notes || undefined,
+            labResults: undefined,
+            vitalSigns: undefined,
+            allergies: []
+          };
+        }
+      }
+    } catch {
+      // ignore fetch errors; proceed without DB patient
+    }
+
+    const assistantDirective = fetchedPatient
+      ? `You are given an internal patient record. First, state the patient's full name, age, key conditions, and any current medications or notes available. Then provide a concise status summary. After that, ask 2-3 follow-up clinical questions that would help refine diagnosis or care plan and potential next steps.`
+      : undefined;
+
     // Create medical query for Llama 3
     const medicalQuery = {
-      query: message,
+      query: assistantDirective ? `${assistantDirective}\n\nUser: ${message}` : message,
       queryType: queryType,
       context: {
-        patientData: patientData || null,
+        patientData: fetchedPatient || patientData || undefined,
         medicalHistory: context || 'medical_assistant',
-        labResults: patientData?.labResults || null,
-        imagingData: null,
-        vitalSigns: patientData?.vitalSigns || null,
-        medications: patientData?.medications || [],
+        labResults: (patientData?.labResults) || undefined,
+        imagingData: undefined,
+        vitalSigns: patientData?.vitalSigns || undefined,
+        medications: (fetchedPatient?.medications) || patientData?.medications || [],
         allergies: patientData?.allergies || []
       }
     };
@@ -176,11 +209,11 @@ router.post('/analyze', async (req: Request, res: Response) => {
       query: `Please analyze the following ${analysisType || 'medical data'}: ${JSON.stringify(data)}`,
       queryType: 'analysis' as const,
       context: {
-        patientData: patientContext || null,
+        patientData: patientContext || undefined,
         medicalHistory: 'medical_analysis',
-        labResults: analysisType === 'lab_interpretation' ? data : null,
-        imagingData: analysisType === 'imaging' ? data : null,
-        vitalSigns: patientContext?.vitalSigns || null,
+        labResults: analysisType === 'lab_interpretation' ? data : undefined,
+        imagingData: analysisType === 'imaging' ? data : undefined,
+        vitalSigns: patientContext?.vitalSigns || undefined,
         medications: patientContext?.medications || [],
         allergies: patientContext?.allergies || []
       }
@@ -231,11 +264,11 @@ router.post('/diagnosis', async (req: Request, res: Response) => {
       query: `Please provide a differential diagnosis for the following symptoms: ${symptoms}`,
       queryType: 'diagnosis' as const,
       context: {
-        patientData: patientContext || null,
+        patientData: patientContext || undefined,
         medicalHistory: patientContext?.medicalHistory || 'diagnosis_request',
-        labResults: patientContext?.labResults || null,
-        imagingData: null,
-        vitalSigns: patientContext?.vitalSigns || null,
+        labResults: patientContext?.labResults || undefined,
+        imagingData: undefined,
+        vitalSigns: patientContext?.vitalSigns || undefined,
         medications: patientContext?.medications || [],
         allergies: patientContext?.allergies || []
       }
@@ -311,11 +344,11 @@ router.post('/treatment', async (req: Request, res: Response) => {
       query: `Please provide evidence-based treatment recommendations for: ${condition}`,
       queryType: 'treatment' as const,
       context: {
-        patientData: patientContext || null,
+        patientData: patientContext || undefined,
         medicalHistory: patientContext?.medicalHistory || 'treatment_request',
-        labResults: patientContext?.labResults || null,
-        imagingData: null,
-        vitalSigns: patientContext?.vitalSigns || null,
+        labResults: patientContext?.labResults || undefined,
+        imagingData: undefined,
+        vitalSigns: patientContext?.vitalSigns || undefined,
         medications: patientContext?.medications || [],
         allergies: patientContext?.allergies || []
       }

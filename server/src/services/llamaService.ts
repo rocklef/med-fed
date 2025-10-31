@@ -15,11 +15,11 @@ export interface LlamaConfig {
 export interface MedicalQuery {
   query: string;
   context?: {
-    patientData?: any;
+    patientData?: Record<string, unknown>;
     medicalHistory?: string;
-    labResults?: any;
-    imagingData?: any;
-    vitalSigns?: any;
+    labResults?: Record<string, unknown>;
+    imagingData?: Record<string, unknown>;
+    vitalSigns?: Record<string, unknown>;
     medications?: string[];
     allergies?: string[];
   };
@@ -108,7 +108,7 @@ export class LlamaService extends EventEmitter {
       const response = await fetch(`${this.config.apiUrl}/api/tags`);
       if (response.ok) {
         const data = await response.json();
-        this.availableModels = data.models?.map((m: any) => m.name) || [];
+        this.availableModels = data.models?.map((m: { name: string }) => m.name) || [];
         console.log('Available models:', this.availableModels);
       }
     } catch (error) {

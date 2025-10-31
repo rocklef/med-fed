@@ -4,21 +4,22 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { testDatabaseConnections, initializeDatabaseSchema } from './config/database';
 import { StatusCodes } from 'http-status-codes';
 
 import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { errorHandler } from './middleware/errorHandler';
-import patientsRouter from './routes/patients';
 import assistantRouter from './routes/assistant';
-import federatedRouter from './routes/federated';
 import { initializeLlamaService, LlamaConfig } from './services/llamaService';
+import { initializeDatabase } from './services/databaseService';
+import patientsRouter from './routes/patients';
+import paymentsRouter from './routes/payments';
+import ragRouter from './routes/rag';
+import uploadsRouter from './routes/uploads';
 
 const app = express();
 
 const PORT = Number(process.env.PORT || 4000);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:8080';
-// Database configuration is handled in config/database.ts
 
 // Llama 3 configuration
 const LLAMA_CONFIG: LlamaConfig = {
@@ -31,7 +32,6 @@ const LLAMA_CONFIG: LlamaConfig = {
   apiKey: process.env.LLAMA_API_KEY,
   systemPrompt: process.env.LLAMA_SYSTEM_PROMPT || `You are a medical AI assistant trained on medical datasets. Provide evidence-based medical information, clinical decision support, and analysis. Always emphasize that your responses are for educational and decision support purposes only, and should not replace professional medical judgment.`
 };
-
 
 // Security and parsing
 app.use(helmet());
@@ -53,9 +53,11 @@ app.get('/health', (_req: Request, res: Response) => {
 // app.use('/api', apiKeyAuth);
 
 // Routes
-app.use('/api/patients', patientsRouter);
 app.use('/api/assistant', assistantRouter);
-app.use('/api/federated', federatedRouter);
+app.use('/api/patients', patientsRouter);
+app.use('/api/payments', paymentsRouter);
+app.use('/api/rag', ragRouter);
+app.use('/api/uploads', uploadsRouter);
 
 // Not found
 app.use((req: Request, res: Response) => {
@@ -67,14 +69,15 @@ app.use(errorHandler as unknown as (err: Error, req: Request, res: Response, nex
 
 async function start() {
   try {
-    // Test and initialize database connections
-    console.log('Testing database connections...');
-    await testDatabaseConnections();
+    // Initialize SQLite database
+    console.log('Initializing SQLite database...');
+    try {
+      initializeDatabase();
+      console.log('SQLite database initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize SQLite database:', error);
+    }
     
-    // Initialize database schema
-    console.log('Initializing database schema...');
-    await initializeDatabaseSchema();
-
     // Initialize Llama Service
     console.log('Initializing Llama Service...');
     try {
@@ -109,5 +112,3 @@ async function start() {
 }
 
 start();
-
-

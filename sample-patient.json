@@ -1,0 +1,12 @@
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "dob": "1980-01-01",
+  "gender": "male",
+  "contactNumber": "123-456-7890",
+  "email": "john.doe@example.com",
+  "address": "123 Main St",
+  "conditions": ["hypertension", "diabetes"],
+  "medications": ["lisinopril", "metformin"],
+  "notes": "Patient has been stable on current medications."
+}

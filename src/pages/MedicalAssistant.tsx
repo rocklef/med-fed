@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, Send, User, Bot, FileText, Image, BarChart3, AlertTriangle, Clock, BookOpen, Wifi, WifiOff, CheckCircle } from "lucide-react";
+import { Brain, Send, User, Bot, FileText, Image, BarChart3, AlertTriangle, Clock, BookOpen, Wifi, WifiOff, CheckCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -34,6 +34,8 @@ const MedicalAssistant = () => {
     }
   ]);
   const [inputMessage, setInputMessage] = useState("");
+  const [patientIdInput, setPatientIdInput] = useState<string>("");
+  const [patientData, setPatientData] = useState<any>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -48,6 +50,15 @@ const MedicalAssistant = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fetch patient data when patient ID changes
+  useEffect(() => {
+    if (patientIdInput) {
+      fetchPatientData(patientIdInput);
+    } else {
+      setPatientData(null);
+    }
+  }, [patientIdInput]);
 
   // Check service status on component mount and periodically
   useEffect(() => {
@@ -96,6 +107,7 @@ const MedicalAssistant = () => {
           message: userMessage,
           context: "medical_assistant",
           queryType: detectedQueryType,
+          patientId: patientIdInput ? Number(patientIdInput) : undefined,
           patientData: {
             // Add any available patient context here
           }
@@ -198,6 +210,36 @@ const MedicalAssistant = () => {
     }
   };
 
+  // Function to fetch patient data by ID
+  const fetchPatientData = async (id: string) => {
+    if (!id) {
+      setPatientData(null);
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}/api/patients/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPatientData(data);
+      } else {
+        setPatientData(null);
+        toast({
+          title: "Patient not found",
+          description: `No patient found with ID: ${id}`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setPatientData(null);
+      toast({
+        title: "Error",
+        description: "Failed to fetch patient data",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pt-20 px-6">
       <div className="container mx-auto max-w-6xl">
@@ -251,6 +293,55 @@ const MedicalAssistant = () => {
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Chat Area */}
           <div className="lg:col-span-3">
+            {/* Patient Info Card */}
+            {patientData && (
+              <Card className="p-4 mb-4 medical-card">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold text-lg">
+                      {patientData.firstName} {patientData.lastName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      ID: {patientData.id} | DOB: {new Date(patientData.dob).toLocaleDateString()} | 
+                      Age: {Math.floor((Date.now() - new Date(patientData.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} | 
+                      Gender: {patientData.gender}
+                    </p>
+                    {patientData.conditions && patientData.conditions.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-sm font-medium">Conditions:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {patientData.conditions.map((condition: string, index: number) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {condition}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {patientData.medications && patientData.medications.length > 0 && (
+                      <div className="mt-2">
+                        <span className="text-sm font-medium">Medications:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {patientData.medications.map((medication: string, index: number) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {medication}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setPatientData(null)}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </Card>
+            )}
+
             <Card className="h-[600px] medical-card flex flex-col">
               {/* Messages */}
               <div className="flex-1 p-6 overflow-y-auto space-y-4">
@@ -299,7 +390,22 @@ const MedicalAssistant = () => {
 
               {/* Input Area */}
               <div className="p-4 border-t">
-                <div className="flex space-x-2">
+                <div className="flex gap-2 items-start">
+                  <div className="flex gap-2">
+                    <Input
+                      value={patientIdInput}
+                      onChange={(e)=> setPatientIdInput(e.target.value)}
+                      placeholder="Patient ID"
+                      className="w-32 bg-background"
+                    />
+                    <Button 
+                      onClick={() => fetchPatientData(patientIdInput)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <Textarea
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}

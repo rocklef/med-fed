@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,40 +8,208 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { User, FileText, Image, Upload, Shield, CheckCircle } from "lucide-react";
+import { User, FileText, Image, Upload, Shield, CheckCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PatientData = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [genderValue, setGenderValue] = useState<string | undefined>(undefined);
   const { toast } = useToast();
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const [patients, setPatients] = useState<any[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState<any>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUploading(true);
-    
-    // Simulate upload progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 10;
-      setUploadProgress(progress);
-      if (progress >= 100) {
-        clearInterval(interval);
-        setIsUploading(false);
-        setUploadProgress(0);
-        toast({
-          title: "Patient data added successfully",
-          description: "Data has been securely encrypted and stored in the federated system.",
-        });
-      }
-    }, 200);
+  const fetchPatients = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/patients`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setPatients(Array.isArray(data) ? data : []);
+    } catch {
+      // ignore for now, keep static view empty
+    }
   };
 
-  const recentPatients = [
-    { id: "P001", name: "John D.", age: 67, condition: "Hypertension", lastVisit: "2024-01-15" },
-    { id: "P002", name: "Sarah M.", age: 45, condition: "Diabetes Type 2", lastVisit: "2024-01-14" },
-    { id: "P003", name: "Robert K.", age: 72, condition: "Heart Disease", lastVisit: "2024-01-13" },
-  ];
+  useEffect(() => {
+    fetchPatients();
+  }, [API_URL]);
+
+  const handleDeleteClick = (patient: any) => {
+    setPatientToDelete(patient);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!patientToDelete?.id) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/patients/${patientToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete patient (HTTP ${response.status})`);
+      }
+
+      toast({
+        title: 'Patient deleted successfully',
+        description: `${patientToDelete.firstName} ${patientToDelete.lastName} has been removed.`,
+      });
+
+      setDeleteDialogOpen(false);
+      setPatientToDelete(null);
+      fetchPatients(); // Refresh the list
+    } catch (error) {
+      toast({
+        title: 'Failed to delete patient',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsUploading(true);
+
+    try {
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+
+      const firstName = String(formData.get('firstName') || '').trim();
+      const lastName = String(formData.get('lastName') || '').trim();
+      const ageStr = String(formData.get('age') || '').trim();
+      const contactNumber = String(formData.get('contactNumber') || '').trim();
+      const email = String(formData.get('email') || '').trim();
+      const address = String(formData.get('address') || '').trim();
+      const medicalHistory = String(formData.get('medicalHistory') || '').trim();
+      const currentCondition = String(formData.get('currentCondition') || '').trim();
+      const gender = (genderValue || '').toLowerCase();
+
+      if (!firstName || !lastName) {
+        throw new Error('First name and Last name are required.');
+      }
+
+      // Backend requires DOB (YYYY-MM-DD). If user provided age, derive an approximate DOB.
+      let dob = '1970-01-01';
+      const ageNum = Number(ageStr);
+      if (!Number.isNaN(ageNum) && ageNum > 0 && ageNum < 130) {
+        const now = new Date();
+        const approx = new Date(now.getTime() - ageNum * 365.25 * 24 * 60 * 60 * 1000);
+        const yyyy = approx.getUTCFullYear();
+        const mm = String(approx.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(approx.getUTCDate()).padStart(2, '0');
+        dob = `${yyyy}-${mm}-${dd}`;
+      }
+
+      // Basic optional validations
+      const cleanedContact = contactNumber || undefined;
+      const cleanedEmail = email && /.+@.+\..+/.test(email) ? email : (email ? undefined : undefined);
+      const cleanedAddress = address || undefined;
+
+      // Parse conditions and medications from medical history
+      const conditions = medicalHistory ? medicalHistory.split(/,|\n/).map(s => s.trim()).filter(Boolean) : [];
+      
+      // Simple medication extraction - looks for common medication patterns
+      // This is a basic implementation that could be enhanced
+      let medications: string[] = [];
+      if (medicalHistory) {
+        // Look for common medication indicators
+        const medicationRegex = /(?:medications?:?\s*)(.*?)(?:\n|$)/gi;
+        const medicationMatch = medicalHistory.match(medicationRegex);
+        if (medicationMatch) {
+          // Extract medication names from the matched text
+          medications = medicationMatch.flatMap(match => 
+            match.replace(/medications?:?\s*/i, '').split(/,|\n/).map(s => s.trim()).filter(Boolean)
+          );
+        }
+        
+        // If no explicit "medications" section found, check for common medication patterns
+        if (medications.length === 0) {
+          // Look for common medication dosage patterns (e.g., "Lisinopril 10mg")
+          const dosageRegex = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|%|units?|iu)\b/gi;
+          const dosageMatches = medicalHistory.match(dosageRegex);
+          if (dosageMatches) {
+            medications = dosageMatches;
+          }
+        }
+      }
+
+      // Compose payload expected by the API
+      const payload = {
+        firstName,
+        lastName,
+        dob,
+        gender: (gender === 'male' || gender === 'female' || gender === 'other') ? (gender as 'male'|'female'|'other') : 'other',
+        contactNumber: cleanedContact,
+        email: cleanedEmail,
+        address: cleanedAddress,
+        conditions,
+        medications,
+        notes: currentCondition || medicalHistory || ''
+      };
+
+      // Progress indicator while request is sent
+      setUploadProgress(25);
+
+      const response = await fetch(`${API_URL}/api/patients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      setUploadProgress(80);
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || `Failed to create patient (HTTP ${response.status})`);
+      }
+
+      setUploadProgress(100);
+      toast({
+        title: 'Patient data added successfully',
+        description: `Created record for ${data.firstName} ${data.lastName} (ID: ${data.id || 'N/A'})`,
+      });
+
+      form.reset();
+      setGenderValue(undefined);
+      // refresh list
+      fetchPatients();
+    } catch (err) {
+      toast({
+        title: 'Failed to add patient',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    } finally {
+      // Small delay so progress bar is visible
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 300);
+    }
+  };
+
+  // derive display-friendly list from DB patients
+  const recentPatients = patients.slice(0, 10).map((p) => ({
+    id: p.id,
+    name: `${p.firstName} ${p.lastName?.charAt(0) || ''}.`,
+    age: p.dob ? Math.max(0, Math.floor((Date.now() - new Date(p.dob).getTime()) / (365.25*24*60*60*1000))) : '-',
+    condition: Array.isArray(p.conditions) && p.conditions.length ? p.conditions[0] : '—',
+    lastVisit: p.updatedAt ? new Date(p.updatedAt).toISOString().split('T')[0] : ''
+  }));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 pt-20 px-6">
@@ -78,6 +246,7 @@ const PatientData = () => {
                     <Label htmlFor="firstName">First Name *</Label>
                     <Input 
                       id="firstName" 
+                      name="firstName"
                       placeholder="Enter first name" 
                       required 
                       className="bg-background"
@@ -87,6 +256,7 @@ const PatientData = () => {
                     <Label htmlFor="lastName">Last Name *</Label>
                     <Input 
                       id="lastName" 
+                      name="lastName"
                       placeholder="Enter last name" 
                       required 
                       className="bg-background"
@@ -99,6 +269,7 @@ const PatientData = () => {
                     <Label htmlFor="age">Age</Label>
                     <Input 
                       id="age" 
+                      name="age"
                       type="number" 
                       placeholder="Age" 
                       className="bg-background"
@@ -106,7 +277,7 @@ const PatientData = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="gender">Gender</Label>
-                    <Select>
+                    <Select value={genderValue} onValueChange={setGenderValue}>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
@@ -129,10 +300,43 @@ const PatientData = () => {
                   </div>
                 </div>
 
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="contactNumber">Contact Number</Label>
+                    <Input 
+                      id="contactNumber" 
+                      name="contactNumber"
+                      placeholder="e.g., +1 555-123-4567"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      name="email"
+                      type="email"
+                      placeholder="e.g., patient@example.com" 
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input 
+                    id="address" 
+                    name="address"
+                    placeholder="Street, City, State, ZIP"
+                    className="bg-background"
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="medicalHistory">Medical History</Label>
                   <Textarea 
                     id="medicalHistory" 
+                    name="medicalHistory"
                     placeholder="Enter relevant medical history, current medications, allergies, etc."
                     className="min-h-32 bg-background"
                   />
@@ -142,6 +346,7 @@ const PatientData = () => {
                   <Label htmlFor="currentCondition">Current Condition/Chief Complaint</Label>
                   <Textarea 
                     id="currentCondition" 
+                    name="currentCondition"
                     placeholder="Describe the current medical condition or reason for visit"
                     className="bg-background"
                   />
@@ -264,30 +469,74 @@ const PatientData = () => {
               </div>
               
               <div className="space-y-4">
-                {recentPatients.map((patient) => (
-                  <div key={patient.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      <div className="p-2 rounded-lg medical-gradient">
-                        <User className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{patient.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {patient.age} years • {patient.condition}
+                {recentPatients.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No patients found. Add a patient to get started.
+                  </div>
+                ) : (
+                  recentPatients.map((patientDisplay) => {
+                    const patient = patients.find(p => p.id === patientDisplay.id);
+                    return (
+                      <div key={patientDisplay.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center space-x-4 flex-1">
+                          <div className="p-2 rounded-lg medical-gradient">
+                            <User className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium">{patientDisplay.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {patientDisplay.age} years • {patientDisplay.condition}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-4">
+                          <div className="text-right">
+                            <div className="text-sm font-medium">ID: {patientDisplay.id}</div>
+                            <div className="text-xs text-muted-foreground">Last visit: {patientDisplay.lastVisit}</div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => patient && handleDeleteClick(patient)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-sm font-medium">ID: {patient.id}</div>
-                      <div className="text-xs text-muted-foreground">Last visit: {patient.lastVisit}</div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })
+                )}
               </div>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the patient record for{" "}
+                <strong>
+                  {patientToDelete?.firstName} {patientToDelete?.lastName}
+                </strong>
+                . This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

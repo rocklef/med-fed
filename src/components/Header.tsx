@@ -27,6 +27,9 @@ const Header = () => {
               <a href="/medical-assistant">Medical Assistant</a>
             </Button>
             <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+              <a href="/payments">Payments</a>
+            </Button>
+            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
               Analytics
             </Button>
           </nav>

@@ -1,26 +1,19 @@
-import mongoose, { Schema, InferSchemaType, Model } from 'mongoose';
+// Remove Mongoose dependencies since we're using SQLite
+export interface Patient {
+  id?: number;
+  firstName: string;
+  lastName: string;
+  dob: Date;
+  gender: 'male' | 'female' | 'other';
+  contactNumber?: string;
+  email?: string;
+  address?: string;
+  conditions: string[];
+  medications: string[];
+  notes: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
-const patientSchema = new Schema(
-  {
-    firstName: { type: String, required: true, trim: true },
-    lastName: { type: String, required: true, trim: true },
-    dob: { type: Date, required: true },
-    gender: { type: String, enum: ['male', 'female', 'other'], required: true },
-    contactNumber: { type: String, required: false },
-    email: { type: String, required: false, lowercase: true, trim: true },
-    address: { type: String, required: false },
-    conditions: { type: [String], default: [] },
-    medications: { type: [String], default: [] },
-    notes: { type: String, default: '' }
-  },
-  { timestamps: true }
-);
-
-export type Patient = InferSchemaType<typeof patientSchema>;
-
-const PatientModel: Model<Patient> =
-  mongoose.models.Patient || mongoose.model<Patient>('Patient', patientSchema);
-
-export default PatientModel;
-
-
+// We don't need the Mongoose model anymore since we're using SQLite
+// The Patient interface is sufficient for our TypeScript types

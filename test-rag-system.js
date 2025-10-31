@@ -43,8 +43,25 @@ async function testRAGSystem() {
     console.log('Query:', patientResponse.data.query);
     console.log('Response:', patientResponse.data.response.substring(0, 200) + '...');
     console.log('Confidence:', patientResponse.data.confidence);
+    if (patientResponse.data.patientData) {
+      console.log('Patient Found:', patientResponse.data.patientData.name);
+    }
   } catch (error) {
     console.log('❌ Patient Query failed:', error.message);
+  }
+
+  // Test 4: Query History
+  console.log('\n4️⃣ Testing Query History...');
+  try {
+    const historyResponse = await makeRequest('GET', '/api/rag/history?limit=5');
+    console.log('✅ Query History:');
+    console.log('Total queries:', historyResponse.count);
+    if (historyResponse.history.length > 0) {
+      console.log('Latest query:', historyResponse.history[0].query);
+      console.log('Response length:', historyResponse.history[0].response.length);
+    }
+  } catch (error) {
+    console.log('❌ Query History failed:', error.message);
   }
 }
 

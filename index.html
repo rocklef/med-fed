@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,10 +16,98 @@
     <meta name="twitter:site" content="@lovable_dev" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
     <meta name="robots" content="noindex,nofollow" />
+    
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: #f5f5f5;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        color: #333;
+      }
+      .error {
+        background: #fee;
+        border: 1px solid #fcc;
+        padding: 20px;
+        margin: 20px;
+        border-radius: 8px;
+        color: #c33;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="loading">
+        <h1>Loading...</h1>
+        <p>If this persists, check the browser console for errors.</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Basic error handling
+      window.addEventListener('error', (event) => {
+        console.error('Global error:', event.error);
+        const root = document.getElementById('root');
+        if (root) {
+          root.innerHTML = `
+            <div class="error">
+              <h2>Error Loading Application</h2>
+              <p><strong>Error:</strong> ${event.error?.message || event.message}</p>
+              <p><strong>File:</strong> ${event.filename}</p>
+              <p><strong>Line:</strong> ${event.lineno}</p>
+              <p>Check the browser console for more details.</p>
+            </div>
+          `;
+        }
+      });
+
+      window.addEventListener('unhandledrejection', (event) => {
+        console.error('Unhandled promise rejection:', event.reason);
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading')) {
+          root.innerHTML = `
+            <div class="error">
+              <h2>Error Loading Application</h2>
+              <p><strong>Promise Rejection:</strong> ${event.reason}</p>
+              <p>Check the browser console for more details.</p>
+            </div>
+          `;
+        }
+      });
+
+      // Check if React loaded after 5 seconds
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading')) {
+          root.innerHTML = `
+            <div class="error">
+              <h2>Application Failed to Load</h2>
+              <p>The application did not render within 5 seconds.</p>
+              <p>Please check:</p>
+              <ul>
+                <li>Open browser console (F12) for errors</li>
+                <li>Ensure the dev server is running: <code>npm run dev</code></li>
+                <li>Check that all dependencies are installed: <code>npm install</code></li>
+                <li>Verify the server is accessible at http://localhost:8080</li>
+              </ul>
+            </div>
+          `;
+        }
+      }, 5000);
+    </script>
   </body>
 </html>
